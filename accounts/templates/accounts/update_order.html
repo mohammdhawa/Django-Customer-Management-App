@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+
+{% block content %}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-body m-4">
+            <form method='POST' enctype="multipart/form-data">
+                {% csrf_token %}
+                {% bootstrap_form form %}
+                <button class="btn btn-primary btn-block" type="submit">Save</button>
+            </form>
+        </div>
+    </div>
+</div>
+    
+{% endblock content %}
+    
