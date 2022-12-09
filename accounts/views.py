@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect
 from .models import Product, Customer, Order
 from .forms import OrderForm
+from django.forms import inlineformset_factory
+from .filters import OrderFilter
 
 # Create your views here.
 
@@ -30,20 +32,27 @@ def customer(request, pk):
     orders = customer.order_set.all()
     total_orders = orders.count()
     
+    myFilter = OrderFilter(request.GET, queryset=orders)
+    orders = myFilter.qs
     
-    context = {'customer': customer, 'orders': orders, 'total_orders': total_orders}
+    context = {'customer': customer, 'orders': orders, 'total_orders': total_orders, 'myfilter': myFilter}
     return render(request, 'accounts/customer.html', context)
 
 
-def create_order(request):
-    form = OrderForm()
+def create_order(request, pk):
+    orderFormSet = inlineformset_factory(Customer, Order, fields=('product', 'status'), extra=5)
+    customer = Customer.objects.get(id=pk)
+    
+    formset = orderFormSet(queryset=Order.objects.none(), instance=customer)
+    
+    form = OrderForm(initial={'customer': customer})
     if request.method == 'POST':
-        form = OrderForm(request.POST)
-        if form.is_valid():
-            form.save()
+        formset = orderFormSet(request.POST, instance=customer)
+        if formset.is_valid():
+            formset.save()
             return redirect('/')
     
-    context = {'form': form}
+    context = {'formset': formset}
     return render(request, 'accounts/order_form.html', context)
 
 
