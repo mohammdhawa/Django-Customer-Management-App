@@ -1,4 +1,8 @@
 from django.shortcuts import render, redirect
+
+from .decorators import unauthenticated_user, allowed_users, admin_only
+from django.contrib.auth.models import Group
+
 from .models import Product, Customer, Order
 from .forms import OrderForm, CreateUserForm
 from django.forms import inlineformset_factory
@@ -10,42 +14,39 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 
 # Create your views here.
-
+@unauthenticated_user
 def registerPage(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-    else:
-        form = CreateUserForm()
-        if request.method == 'POST':
-            form = CreateUserForm(request.POST)
-            if form.is_valid():
-                form.save()
-                user = form.cleaned_data['username']
-                messages.success(request, 'Account was created for ' + user)
-                return redirect('login')
-    
-        context = {'form':form}
-        return render(request, 'accounts/register.html', context)
+    form = CreateUserForm()
+    if request.method == 'POST':
+        form = CreateUserForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            username = form.cleaned_data['username']
+            group = Group.objects.get(name='customers')
+            user.groups.add(group)
+            messages.success(request, 'Account was created for ' + username)
+            return redirect('login')
+
+    context = {'form':form}
+    return render(request, 'accounts/register.html', context)
 
 
+@unauthenticated_user
 def loginPage(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-    else:
-        if request.method == 'POST':
-            username = request.POST.get('username')
-            password = request.POST.get('password')
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
             
-            user = authenticate(request, username=username, password=password)
+        user = authenticate(request, username=username, password=password)
             
-            if user is not None:
-                login(request, user)
-                return redirect('home')
-            else:
-                messages.info(request, 'Username Or password is incorrect')
+        if user is not None:
+            login(request, user)
+            return redirect('home')
+        else:
+            messages.info(request, 'Username Or password is incorrect')
         
-        context = {}
-        return render(request, 'accounts/login.html', context)
+    context = {}
+    return render(request, 'accounts/login.html', context)
 
 
 def logoutUser(request):
@@ -54,6 +55,7 @@ def logoutUser(request):
 
 
 @login_required(login_url='login')
+@admin_only
 def home(request):
     customers = Customer.objects.all()
     orders = Order.objects.all()
@@ -65,6 +67,12 @@ def home(request):
     context = {'customers': customers, 'orders': orders, 
                'total_orders': total_orders, 'delivered': delivered, 'pending': pending}
     return render(request, 'accounts/dashboard.html', context)
+
+
+def userPage(request):
+    
+    context = {}
+    return render(request, 'accounts/user.html', context)
 
 
 @login_required(login_url='login')
@@ -90,6 +98,7 @@ def customer(request, pk):
 
 
 @login_required(login_url='login')
+@allowed_users(allowed_roles=['admin'])
 def create_order(request, pk):
     orderFormSet = inlineformset_factory(Customer, Order, fields=('product', 'status'), extra=5)
     customer = Customer.objects.get(id=pk)
@@ -108,6 +117,7 @@ def create_order(request, pk):
 
 
 @login_required(login_url='login')
+@allowed_users(allowed_roles=['admin'])
 def update_order(request, pk):
     order = Order.objects.get(id=pk)
     
@@ -124,6 +134,7 @@ def update_order(request, pk):
 
 
 @login_required(login_url='login')
+@allowed_users(allowed_roles=['admin'])
 def delete_order(request, pk):
     order = Order.objects.get(id=pk)
     
